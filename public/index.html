@@ -1,228 +1,290 @@
-// موقع تفعيل روبلوكس - خادم Node.js بدون أي مكتبات خارجية (Node 18+)
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نظام التفعيل</title>
+<style>
+:root{--bg:#0f1117;--card:#181b24;--card2:#1f2330;--line:#2a2f3f;--text:#e8eaf0;--mute:#8d93a7;--accent:#5b7cff;--ok:#2ecc71;--bad:#ef4444;--discord:#5865f2;--roblox:#e2231a}
+@media (prefers-color-scheme: light){:root{--bg:#f3f4f8;--card:#fff;--card2:#f0f2f8;--line:#dde0ea;--text:#1a1d29;--mute:#6b7186}}
+*{box-sizing:border-box;margin:0}
+body{font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line);background:var(--card);position:sticky;top:0;z-index:5}
+header h1{font-size:20px}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px}
+section{margin-bottom:36px}
+h2{font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.badge{background:var(--accent);color:#fff;border-radius:99px;font-size:12px;padding:2px 10px}
+input{width:100%;padding:13px 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px;outline:none;font-family:inherit}
+input:focus{border-color:var(--accent)}
+button{font-family:inherit;cursor:pointer;border:0;border-radius:10px;padding:9px 14px;font-size:13px;color:#fff;background:var(--accent)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-top:14px}
+.user{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;text-align:center;cursor:pointer;transition:.15s}
+.user:hover{border-color:var(--accent);transform:translateY(-2px)}
+.user img.av{width:84px;height:84px;border-radius:50%;background:var(--card2);object-fit:cover}
+.user .n{font-weight:600;margin-top:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user .s{font-size:12px;color:var(--mute);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.act{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;cursor:pointer;transition:.15s}
+.act:hover{border-color:var(--accent)}
+.act .btns{display:flex;gap:6px;margin-bottom:12px}
+.act .btns button{flex:1;padding:7px 4px;font-size:12px}
+.b-d{background:var(--discord)}.b-r{background:var(--roblox)}
+.act .row{display:flex;gap:10px;align-items:center}
+.act .row img{width:56px;height:56px;border-radius:50%;background:var(--card2);object-fit:cover}
+.act .t{min-width:0}
+.act .t b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act .t span{font-size:12px;color:var(--mute);display:flex;gap:5px;align-items:center;overflow:hidden;white-space:nowrap}
+.act .t span img{width:16px;height:16px;border-radius:50%}
+.empty{color:var(--mute);padding:20px;text-align:center;border:1px dashed var(--line);border-radius:14px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:16px;z-index:50;backdrop-filter:blur(3px)}
+.overlay.show{display:flex}
+.modal{background:var(--card);border:1px solid var(--line);border-radius:18px;width:100%;max-width:440px;max-height:90vh;overflow:auto;position:relative;animation:pop .18s}
+@keyframes pop{from{transform:scale(.95);opacity:0}to{transform:scale(1);opacity:1}}
+.x{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.35);width:32px;height:32px;border-radius:50%;padding:0;z-index:2}
+.mbody{padding:24px}
+.center{text-align:center}
+.center img.big{width:110px;height:110px;border-radius:50%;background:var(--card2);object-fit:cover;border:3px solid var(--card)}
+.mbody label{display:block;font-size:13px;color:var(--mute);margin:16px 0 6px}
+.actions{display:flex;gap:8px;margin-top:18px}
+.actions button{flex:1;padding:12px}
+.ghost{background:var(--card2);color:var(--text)}
+.danger{background:var(--bad)}
+.ok{background:var(--ok)}
+.tabs{display:flex;border-bottom:1px solid var(--line);margin-top:0}
+.tabs button{flex:1;background:none;color:var(--mute);border-radius:0;padding:14px;font-size:14px;border-bottom:2px solid transparent}
+.tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+.banner{height:110px;background:linear-gradient(135deg,var(--discord),#7b86ff) center/cover}
+.info{margin-top:16px;display:grid;gap:8px;text-align:right}
+.info div{display:flex;justify-content:space-between;gap:12px;background:var(--card2);padding:10px 14px;border-radius:10px;font-size:14px}
+.info div span:first-child{color:var(--mute)}
+.info div span:last-child{direction:ltr;text-align:left;word-break:break-all}
+.desc{font-size:13px;color:var(--mute);margin-top:12px;white-space:pre-wrap}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--card2);border:1px solid var(--line);padding:12px 20px;border-radius:12px;z-index:99;display:none}
+.toast.err{border-color:var(--bad)}.toast.good{border-color:var(--ok)}
+#login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100}
+#login .box{width:100%;max-width:340px;padding:24px;text-align:center}
+#login .box h1{margin-bottom:18px}
+#login .box button{width:100%;margin-top:12px;padding:13px}
+.muted{color:var(--mute);font-size:13px}
+</style>
+</head>
+<body>
 
-// ---------- المتغيرات (Railway Variables أو ملف .env محلي) ----------
-// على Railway تُقرأ مباشرة من process.env. ملف .env اختياري للتشغيل المحلي فقط.
-try {
-  const env = fs.readFileSync(path.join(__dirname, '.env'), 'utf8');
-  for (const line of env.split(/\r?\n/)) {
-    if (line.trim().startsWith('#')) continue;
-    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/);
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
-  }
-} catch {}
+<div id="login">
+  <div class="box">
+    <h1>🔐 نظام التفعيل</h1>
+    <input id="pw" type="password" placeholder="كلمة السر">
+    <button onclick="login()">دخول</button>
+    <p id="loginErr" class="muted" style="margin-top:10px;color:var(--bad)"></p>
+  </div>
+</div>
 
-// ينظف القيمة من المسافات وعلامات الاقتباس (حتى لو الصقتها "هكذا")
-const env = (k, def) => {
-  let v = process.env[k];
-  if (v === undefined || v === null) return def;
-  v = String(v).trim().replace(/^(["'`])([\s\S]*)\1$/, '$2').trim();
-  return v === '' ? def : v;
-};
+<header>
+  <h1>✅ نظام التفعيل</h1>
+  <button class="ghost" onclick="logout()">خروج</button>
+</header>
 
-const C = {
-  apiKey: env('ROBLOX_API_KEY'),
-  universe: env('UNIVERSE_ID'),
-  discordToken: env('DISCORD_BOT_TOKEN'),
-  adminPassword: env('ADMIN_PASSWORD'),
-  guildId: env('DISCORD_GUILD_ID'),
-  secret: env('SESSION_SECRET') || crypto.createHash('sha256').update('s:' + (env('ADMIN_PASSWORD') || '') + (env('ROBLOX_API_KEY') || '')).digest('hex'),
-  port: Number(env('PORT')) || 3000,
-  wlStore: env('WHITELIST_STORE', 'ActivationWhitelist'),
-  wlKey: env('WHITELIST_KEY', 'list'),
-  lsStore: env('LASTSEEN_STORE', 'ActivationLastSeen'),
-};
-const REQUIRED = { ROBLOX_API_KEY: C.apiKey, UNIVERSE_ID: C.universe, DISCORD_BOT_TOKEN: C.discordToken, ADMIN_PASSWORD: C.adminPassword };
-const missing = Object.keys(REQUIRED).filter(k => !REQUIRED[k]);
-if (missing.length) { console.error('❌ متغيرات ناقصة (أضفها في Railway > Variables):', missing.join(', ')); process.exit(1); }
-if (!/^\d+$/.test(C.universe)) { console.error('❌ UNIVERSE_ID يجب أن يكون أرقام فقط. القيمة الحالية غير صالحة.'); process.exit(1); }
+<div class="wrap">
+  <section>
+    <h2>➕ تفعيل لاعب جديد</h2>
+    <input id="q" placeholder="ابحث باسم حساب روبلوكس… مثال: z" autocomplete="off">
+    <div id="results" class="grid"></div>
+  </section>
 
-// ---------- أدوات ----------
-const cache = new Map();
-async function cached(key, ttlMs, fn) {
-  const hit = cache.get(key);
-  if (hit && hit.exp > Date.now()) return hit.val;
-  const val = await fn();
-  cache.set(key, { val, exp: Date.now() + ttlMs });
-  return val;
-}
-async function getJson(url, opts) {
-  const r = await fetch(url, opts);
-  if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
-  return r.json();
-}
-const sign = (s) => crypto.createHmac('sha256', C.secret).update(s).digest('hex');
-function makeToken() { const exp = Date.now() + 12 * 3600e3; return `${exp}.${sign(String(exp))}`; }
-function validToken(t) {
-  if (!t) return false;
-  const [exp, sig] = t.split('.');
-  if (!exp || !sig || Number(exp) < Date.now()) return false;
-  const good = sign(exp);
-  return sig.length === good.length && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(good));
-}
+  <section>
+    <h2>👥 المتفعلون <span class="badge" id="count">0</span></h2>
+    <div id="active" class="cards"></div>
+  </section>
+</div>
 
-// ---------- Roblox Open Cloud (DataStore) ----------
-const dsBase = `https://apis.roblox.com/datastores/v1/universes/${C.universe}/standard-datastores/datastore/entries/entry`;
-async function dsGet(store, key) {
-  const r = await fetch(`${dsBase}?datastoreName=${encodeURIComponent(store)}&entryKey=${encodeURIComponent(key)}`, { headers: { 'x-api-key': C.apiKey } });
-  if (r.status === 404) return null;
-  if (!r.ok) throw new Error(`DataStore GET ${r.status}: ${await r.text()}`);
-  const t = await r.text();
-  try { return JSON.parse(t); } catch { return t; }
-}
-async function dsSet(store, key, value) {
-  const body = JSON.stringify(value);
-  const r = await fetch(`${dsBase}?datastoreName=${encodeURIComponent(store)}&entryKey=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'x-api-key': C.apiKey, 'content-type': 'application/json', 'content-md5': crypto.createHash('md5').update(body).digest('base64') },
-    body,
-  });
-  if (!r.ok) throw new Error(`DataStore SET ${r.status}: ${await r.text()}`);
-}
-// قفل بسيط حتى لا تتداخل عمليات الكتابة
-let lock = Promise.resolve();
-function withLock(fn) { const run = lock.then(fn, fn); lock = run.catch(() => {}); return run; }
-async function readList() { const d = await dsGet(C.wlStore, C.wlKey); return d && Array.isArray(d.users) ? d.users : []; }
+<!-- نافذة التفعيل -->
+<div class="overlay" id="ovAct" onclick="if(event.target===this)closeAll()">
+  <div class="modal">
+    <button class="x" onclick="closeAll()">✕</button>
+    <div class="mbody">
+      <div class="center">
+        <img class="big" id="aImg">
+        <h3 id="aName" style="margin-top:10px"></h3>
+        <div class="muted" id="aSub"></div>
+      </div>
+      <label>يوزر أو ايدي ديسكورد</label>
+      <input id="aDisc" placeholder="مثال: 123456789012345678 أو username" autocomplete="off">
+      <p class="muted" style="margin-top:6px">الأفضل كتابة الـ ID لضمان جلب البروفايل.</p>
+      <div class="actions">
+        <button class="ghost" onclick="closeAll()">إلغاء</button>
+        <button class="ok" id="aDone" onclick="finish()">إنهاء</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-// ---------- Roblox العامة ----------
-async function robloxThumbs(ids, size = '150x150') {
-  if (!ids.length) return {};
-  const j = await getJson(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${ids.join(',')}&size=${size}&format=Png&isCircular=false`);
-  const out = {}; for (const d of j.data || []) out[d.targetId] = d.imageUrl; return out;
-}
-async function robloxSearch(q) {
-  const key = 'rs:' + q.toLowerCase();
-  const found = await cached(key, 30e3, async () => {
-    let list = [];
-    // البحث العام: Roblox يقبل limit = 10 / 25 / 50 / 100 فقط، ويرفض الكلمات القصيرة جداً
-    try {
-      const j = await getJson(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(q)}&limit=25`);
-      list = j.data || [];
-    } catch (e) { if (e.status !== 400) throw e; }
-    // تطابق تام مع الاسم (يفيد للأسماء القصيرة)
-    try {
-      const j = await getJson('https://users.roblox.com/v1/usernames/users', {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ usernames: [q], excludeBannedUsers: false }),
-      });
-      for (const u of j.data || []) if (!list.some(x => x.id === u.id)) list.unshift(u);
-    } catch {}
-    return list;
-  });
-  const users = found.slice(0, 24);
-  const thumbs = await robloxThumbs(users.map(u => u.id));
-  return users.map(u => ({ id: u.id, name: u.name, displayName: u.displayName, avatar: thumbs[u.id] || null }));
-}
-async function robloxProfile(id) {
-  const u = await cached('rp:' + id, 60e3, () => getJson(`https://users.roblox.com/v1/users/${id}`));
-  const thumbs = await robloxThumbs([id], '420x420');
-  let lastSeen = null;
-  try { lastSeen = await dsGet(C.lsStore, String(id)); } catch {}
-  return {
-    id: u.id, name: u.name, displayName: u.displayName, description: u.description,
-    created: u.created, isBanned: u.isBanned, hasVerifiedBadge: u.hasVerifiedBadge,
-    avatar: thumbs[id] || null,
-    lastSeen: typeof lastSeen === 'number' ? lastSeen * 1000 : null, // آخر دخول للماب (ms)
-  };
-}
+<!-- نافذة البروفايل -->
+<div class="overlay" id="ovProf" onclick="if(event.target===this)closeAll()">
+  <div class="modal">
+    <button class="x" onclick="closeAll()">✕</button>
+    <div class="tabs" style="padding-top:0">
+      <button id="tabR" onclick="showTab('r')">روبلوكس</button>
+      <button id="tabD" onclick="showTab('d')">ديسكورد</button>
+    </div>
+    <div id="pBody" class="mbody center"></div>
+  </div>
+</div>
 
-// ---------- Discord الرسمي ----------
-const snowflakeDate = (id) => new Date(Number((BigInt(id) >> 22n) + 1420070400000n)).toISOString();
-async function discordApi(p) {
-  return getJson(`https://discord.com/api/v10${p}`, { headers: { Authorization: `Bot ${C.discordToken}` } });
+<div class="toast" id="toast"></div>
+
+<script>
+let token = sessionStorage.getItem('tok') || '';
+let selected = null, current = null, tab = 'r';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401 && path !== '/api/login') { logout(); throw new Error('انتهت الجلسة'); }
+  if (!r.ok) throw new Error(j.error || 'خطأ');
+  return j;
 }
-async function discordProfile(id) {
-  return cached('dp:' + id, 10 * 60e3, async () => {
-    const u = await discordApi(`/users/${id}`);
-    const idx = Number((BigInt(u.id) >> 22n) % 6n);
-    return {
-      id: u.id, username: u.username, globalName: u.global_name,
-      avatar: u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.${u.avatar.startsWith('a_') ? 'gif' : 'png'}?size=256` : `https://cdn.discordapp.com/embed/avatars/${idx}.png`,
-      banner: u.banner ? `https://cdn.discordapp.com/banners/${u.id}/${u.banner}.png?size=600` : null,
-      accentColor: u.accent_color != null ? '#' + u.accent_color.toString(16).padStart(6, '0') : null,
-      created: snowflakeDate(u.id), bot: !!u.bot,
-    };
-  });
-}
-// يحوّل اسم مستخدم ديسكورد إلى ID (يحتاج DISCORD_GUILD_ID وأن البوت داخل السيرفر)
-async function resolveDiscordName(name) {
-  if (!C.guildId) return null;
+function toast(msg, type = '') { const t = $('toast'); t.textContent = msg; t.className = 'toast ' + type; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 3200); }
+
+async function login() {
   try {
-    const r = await discordApi(`/guilds/${C.guildId}/members/search?query=${encodeURIComponent(name)}&limit=5`);
-    const exact = r.find(m => m.user.username.toLowerCase() === name.toLowerCase()) || r[0];
-    return exact ? exact.user.id : null;
-  } catch { return null; }
+    const j = await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('pw').value }) });
+    token = j.token; sessionStorage.setItem('tok', token);
+    $('login').style.display = 'none'; loadActive();
+  } catch (e) { $('loginErr').textContent = e.message; }
+}
+function logout() { sessionStorage.removeItem('tok'); token = ''; $('login').style.display = 'flex'; }
+$('pw').addEventListener('keydown', e => e.key === 'Enter' && login());
+
+// ---- البحث ----
+let timer;
+$('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 350); });
+async function search() {
+  const q = $('q').value.trim();
+  if (!q) { $('results').innerHTML = ''; return; }
+  $('results').innerHTML = '<div class="muted">جاري البحث…</div>';
+  try {
+    const list = await api('/api/search?q=' + encodeURIComponent(q));
+    $('results').innerHTML = list.length ? list.map(u => `
+      <div class="user" onclick='openActivate(${JSON.stringify(u)})'>
+        <img class="av" src="${esc(u.avatar || '')}" alt="">
+        <div class="n">${esc(u.displayName)}</div><div class="s">@${esc(u.name)}</div>
+      </div>`).join('') : '<div class="empty" style="grid-column:1/-1">لا توجد نتائج' + (q.length < 3 ? '<br><span class="muted">روبلوكس لا يسمح بالبحث الجزئي بأقل من 3 أحرف، اكتب 3 أحرف أو الاسم كاملاً</span>' : '') + '</div>';
+  } catch (e) { $('results').innerHTML = ''; toast(e.message, 'err'); }
 }
 
-// ---------- الخادم ----------
-const send = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
-const readBody = (req) => new Promise((ok, no) => { let b = ''; req.on('data', c => { b += c; if (b.length > 1e5) req.destroy(); }); req.on('end', () => { try { ok(b ? JSON.parse(b) : {}); } catch { ok({}); } }); req.on('error', no); });
-
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x');
-  const p = url.pathname;
+// ---- التفعيل ----
+function openActivate(u) {
+  selected = u;
+  $('aImg').src = u.avatar || ''; $('aName').textContent = u.displayName;
+  $('aSub').textContent = '@' + u.name + ' • ID: ' + u.id; $('aDisc').value = '';
+  $('ovAct').classList.add('show'); setTimeout(() => $('aDisc').focus(), 50);
+}
+$('aDisc').addEventListener('keydown', e => e.key === 'Enter' && finish());
+async function finish() {
+  const discord = $('aDisc').value.trim();
+  if (!discord) return toast('اكتب يوزر أو ايدي ديسكورد', 'err');
+  $('aDone').disabled = true;
   try {
-    if (p === '/health') { res.writeHead(200); return res.end('ok'); }
-    if (!p.startsWith('/api/')) {
-      const file = path.join(__dirname, 'public', 'index.html');
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      return res.end(fs.readFileSync(file));
-    }
-    if (p === '/api/login' && req.method === 'POST') {
-      const { password } = await readBody(req);
-      const a = Buffer.from(String(password || '')), b = Buffer.from(C.adminPassword);
-      if (a.length === b.length && crypto.timingSafeEqual(a, b)) return send(res, 200, { token: makeToken() });
-      return send(res, 401, { error: 'كلمة السر غير صحيحة' });
-    }
-    if (!validToken((req.headers.authorization || '').replace('Bearer ', ''))) return send(res, 401, { error: 'غير مصرح' });
+    const r = await api('/api/activate', { method: 'POST', body: JSON.stringify({ userId: selected.id, username: selected.name, discord }) });
+    toast(r.discordResolved ? 'تم التفعيل ✅' : 'تم التفعيل ✅ (لم يتم التعرف على حساب ديسكورد — استخدم الـ ID لعرض البروفايل)', 'good');
+    closeAll(); $('q').value = ''; $('results').innerHTML = ''; loadActive();
+  } catch (e) { toast(e.message, 'err'); }
+  $('aDone').disabled = false;
+}
 
-    if (p === '/api/search') {
-      const q = (url.searchParams.get('q') || '').trim();
-      if (q.length < 1) return send(res, 200, []);
-      return send(res, 200, await robloxSearch(q));
+// ---- قائمة المتفعلين ----
+let users = [];
+async function loadActive() {
+  try {
+    users = await api('/api/users');
+    $('count').textContent = users.length;
+    $('active').innerHTML = users.length ? users.map((u, i) => `
+      <div class="act" onclick="openProfile(${i},'r')">
+        <div class="btns">
+          <button class="b-d" onclick="event.stopPropagation();openProfile(${i},'d')">بروفايل ديسكورد</button>
+          <button class="b-r" onclick="event.stopPropagation();openProfile(${i},'r')">بروفايل روبلوكس</button>
+        </div>
+        <div class="row">
+          <img src="${esc(u.avatar || '')}" alt="">
+          <div class="t"><b>${esc(u.username)}</b>
+            <span>${u.discordAvatar ? `<img src="${esc(u.discordAvatar)}" alt="">` : '💬'}${esc(u.discordName)}</span></div>
+        </div>
+      </div>`).join('') : '<div class="empty" style="grid-column:1/-1">لا يوجد متفعلون بعد</div>';
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+// ---- البروفايل ----
+function openProfile(i, t) { current = users[i]; $('ovProf').classList.add('show'); showTab(t); }
+function fmtDate(iso) { return new Date(iso).toLocaleDateString('ar', { year: 'numeric', month: 'long', day: 'numeric' }); }
+function ageOf(iso) {
+  const days = Math.floor((Date.now() - new Date(iso)) / 864e5), y = Math.floor(days / 365), m = Math.floor((days % 365) / 30);
+  return `${y} سنة و ${m} شهر (${days.toLocaleString('en')} يوم)`;
+}
+function ago(ms) {
+  const s = Math.floor((Date.now() - ms) / 1000);
+  if (s < 90) return 'قبل لحظات';
+  if (s < 3600) return `قبل ${Math.floor(s / 60)} دقيقة`;
+  if (s < 86400) return `قبل ${Math.floor(s / 3600)} ساعة`;
+  return `قبل ${Math.floor(s / 86400)} يوم`;
+}
+async function showTab(t) {
+  tab = t; $('tabR').classList.toggle('on', t === 'r'); $('tabD').classList.toggle('on', t === 'd');
+  const body = $('pBody'); body.innerHTML = '<div class="muted">جاري التحميل…</div>';
+  const u = current;
+  try {
+    if (t === 'r') {
+      const p = await api('/api/roblox/' + u.userId);
+      if (current !== u || tab !== 'r') return;
+      body.innerHTML = `
+        <img class="big" src="${esc(p.avatar || '')}" alt="">
+        <h3 style="margin-top:10px">${esc(p.displayName)} ${p.hasVerifiedBadge ? '✔️' : ''}</h3>
+        <div class="muted">@${esc(p.name)}</div>
+        <div class="info">
+          <div><span>الايدي</span><span>${p.id}</span></div>
+          <div><span>عمر الحساب</span><span>${ageOf(p.created)}</span></div>
+          <div><span>تاريخ الإنشاء</span><span>${fmtDate(p.created)}</span></div>
+          <div><span>آخر اتصال بالماب</span><span>${p.lastSeen ? ago(p.lastSeen) + ' — ' + new Date(p.lastSeen).toLocaleString('ar') : 'لم يدخل بعد'}</span></div>
+          ${p.isBanned ? '<div><span>الحالة</span><span style="color:var(--bad)">محظور</span></div>' : ''}
+        </div>
+        ${p.description ? `<div class="desc">${esc(p.description)}</div>` : ''}
+        <div class="actions">
+          <button class="ghost" onclick="window.open('https://www.roblox.com/users/${p.id}/profile','_blank')">فتح في روبلوكس</button>
+          <button class="danger" onclick="removeUser(${p.id})">إلغاء التفعيل</button>
+        </div>`;
+    } else {
+      if (!u.discordId) { body.innerHTML = `<div class="empty">لا يوجد ID ديسكورد صالح لهذا الشخص.<br><span class="muted">المُدخل: ${esc(u.discordInput)}</span></div>`; return; }
+      const d = await api('/api/discord/' + u.discordId);
+      if (current !== u || tab !== 'd') return;
+      body.style.padding = '0';
+      body.innerHTML = `
+        <div class="banner" style="${d.banner ? `background-image:url('${esc(d.banner)}')` : (d.accentColor ? `background:${esc(d.accentColor)}` : '')}"></div>
+        <div style="padding:0 24px 24px;margin-top:-55px">
+          <img class="big" src="${esc(d.avatar)}" alt="">
+          <h3 style="margin-top:10px">${esc(d.globalName || d.username)}</h3>
+          <div class="muted">@${esc(d.username)}</div>
+          <div class="info">
+            <div><span>الايدي</span><span>${d.id}</span></div>
+            <div><span>تاريخ إنشاء الحساب</span><span>${fmtDate(d.created)}</span></div>
+            <div><span>عمر الحساب</span><span>${ageOf(d.created)}</span></div>
+          </div>
+        </div>`;
     }
-    if (p === '/api/users' && req.method === 'GET') {
-      const list = await readList();
-      const thumbs = await robloxThumbs(list.map(u => u.userId));
-      const out = await Promise.all(list.map(async u => {
-        let d = null;
-        if (u.discordId) { try { d = await discordProfile(u.discordId); } catch {} }
-        return { ...u, avatar: thumbs[u.userId] || null, discordName: d ? (d.globalName || d.username) : u.discordInput, discordAvatar: d ? d.avatar : null };
-      }));
-      return send(res, 200, out.reverse());
-    }
-    if (p === '/api/activate' && req.method === 'POST') {
-      const { userId, username, discord } = await readBody(req);
-      const uid = Number(userId);
-      const dis = String(discord || '').trim();
-      if (!uid || !username || !dis) return send(res, 400, { error: 'بيانات ناقصة' });
-      let discordId = /^\d{17,20}$/.test(dis) ? dis : await resolveDiscordName(dis.replace(/^@/, ''));
-      await withLock(async () => {
-        const list = await readList();
-        if (list.some(u => u.userId === uid)) throw Object.assign(new Error('dup'), { code: 409 });
-        list.push({ userId: uid, username, discordInput: dis, discordId: discordId || null, addedAt: Date.now() });
-        await dsSet(C.wlStore, C.wlKey, { users: list });
-      });
-      return send(res, 200, { ok: true, discordResolved: !!discordId });
-    }
-    let m;
-    if ((m = p.match(/^\/api\/users\/(\d+)$/)) && req.method === 'DELETE') {
-      await withLock(async () => {
-        const list = (await readList()).filter(u => u.userId !== Number(m[1]));
-        await dsSet(C.wlStore, C.wlKey, { users: list });
-      });
-      return send(res, 200, { ok: true });
-    }
-    if ((m = p.match(/^\/api\/roblox\/(\d+)$/))) return send(res, 200, await robloxProfile(m[1]));
-    if ((m = p.match(/^\/api\/discord\/(\d{17,20})$/))) return send(res, 200, await discordProfile(m[1]));
-    send(res, 404, { error: 'غير موجود' });
-  } catch (e) {
-    if (e.code === 409) return send(res, 409, { error: 'هذا اللاعب مفعّل مسبقاً' });
-    console.error(p, e.message);
-    send(res, 500, { error: e.message });
-  }
-});
-server.listen(C.port, '0.0.0.0', () => console.log(`✅ الموقع يعمل على http://localhost:${C.port}`));
+    if (t === 'r') body.style.padding = '';
+  } catch (e) { body.style.padding = ''; body.innerHTML = `<div class="empty">تعذر جلب البروفايل<br><span class="muted">${esc(e.message)}</span></div>`; }
+}
+async function removeUser(id) {
+  if (!confirm('إلغاء تفعيل هذا اللاعب؟ سيتم طرده من الماب عند أول فحص.')) return;
+  try { await api('/api/users/' + id, { method: 'DELETE' }); toast('تم إلغاء التفعيل', 'good'); closeAll(); loadActive(); }
+  catch (e) { toast(e.message, 'err'); }
+}
+function closeAll() { $('ovAct').classList.remove('show'); $('ovProf').classList.remove('show'); $('pBody').style.padding = ''; }
+document.addEventListener('keydown', e => e.key === 'Escape' && closeAll());
+
+if (token) { $('login').style.display = 'none'; loadActive(); }
+</script>
+</body>
+</html>
