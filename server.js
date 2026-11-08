@@ -51,7 +51,12 @@ async function cached(key, ttlMs, fn) {
 }
 async function getJson(url, opts) {
   const r = await fetch(url, opts);
-  if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; throw e; }
+  if (!r.ok) {
+    const body = (await r.text().catch(() => '')).slice(0, 200);
+    const e = new Error(`HTTP ${r.status}`); e.status = r.status;
+    e.detail = `${String(url).split('?')[0]} -> ${body}`;
+    throw e;
+  }
   return r.json();
 }
 const sign = (s) => crypto.createHmac('sha256', C.secret).update(s).digest('hex');
@@ -90,8 +95,10 @@ async function readList() { const d = await dsGet(C.wlStore, C.wlKey); return d 
 // ---------- Roblox العامة ----------
 async function robloxThumbs(ids, size = '150x150') {
   if (!ids.length) return {};
+  try {
   const j = await getJson(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${ids.join(',')}&size=${size}&format=Png&isCircular=false`);
   const out = {}; for (const d of j.data || []) out[d.targetId] = d.imageUrl; return out;
+  } catch (e) { console.error('thumbnails', e.message, e.detail || ''); return {}; }
 }
 async function robloxSearch(q) {
   const key = 'rs:' + q.toLowerCase();
@@ -221,8 +228,45 @@ const server = http.createServer(async (req, res) => {
     send(res, 404, { error: 'غير موجود' });
   } catch (e) {
     if (e.code === 409) return send(res, 409, { error: 'هذا اللاعب مفعّل مسبقاً' });
-    console.error(p, e.message);
+    console.error(p, e.message, e.detail || '');
     send(res, 500, { error: e.message });
   }
 });
-server.listen(C.port, '0.0.0.0', () => console.log(`✅ الموقع يعمل على http://localhost:${C.port}`));
+server.listen(C.port, '0.0.0.0', () => {
+  console.log('نسخة الخادم: v3');
+  console.log(`✅ الموقع يعمل على http://localhost:${C.port}`);
+});
+
+// ---------- جعل بوت ديسكورد يظهر Online ----------
+// جلب البروفايلات يعمل عبر REST حتى والبوت أوفلاين. هذا الجزء فقط لإظهار حالة Online.
+function startPresence() {
+  if (typeof WebSocket === 'undefined') { console.warn('⚠️ حالة Online تحتاج Node 22 أو أحدث (WebSocket غير متوفر).'); return; }
+  let ws, hb, seq = null, stopped = false;
+  const connect = () => {
+    ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
+    ws.onmessage = (ev) => {
+      const m = JSON.parse(ev.data);
+      if (m.s != null) seq = m.s;
+      if (m.op === 10) {
+        const iv = m.d.heartbeat_interval;
+        setTimeout(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ op: 1, d: seq })); }, iv * Math.random());
+        hb = setInterval(() => { if (ws.readyState === 1) ws.send(JSON.stringify({ op: 1, d: seq })); }, iv);
+        ws.send(JSON.stringify({ op: 2, d: {
+          token: C.discordToken, intents: 0,
+          properties: { os: 'linux', browser: 'activation', device: 'activation' },
+          presence: { status: 'online', afk: false, activities: [{ name: 'نظام التفعيل', type: 3 }] },
+        } }));
+      } else if (m.op === 1) ws.send(JSON.stringify({ op: 1, d: seq }));
+      else if (m.op === 7 || m.op === 9) ws.close();
+      else if (m.t === 'READY') console.log('🟢 بوت ديسكورد Online:', m.d.user.username);
+    };
+    ws.onclose = (ev) => {
+      clearInterval(hb);
+      if (ev.code === 4004) { stopped = true; console.error('❌ DISCORD_BOT_TOKEN غير صالح (Discord رفض الاتصال).'); }
+      if (!stopped) setTimeout(connect, 5000);
+    };
+    ws.onerror = () => {};
+  };
+  connect();
+}
+startPresence();
