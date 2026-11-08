@@ -174,6 +174,38 @@ async function discordGuildInfo(userId) {
     return { error: e.status === 403 ? 'البوت لا يملك صلاحية رؤية الأعضاء (فعّل Server Members Intent)' : e.status === 401 ? 'توكن البوت غير صالح' : 'تعذر جلب الرتب' };
   }
 }
+// ---------- رتب التفعيل: إزالة رتب وإعطاء رتبة ----------
+const REMOVE_ROLES = (env('DISCORD_REMOVE_ROLES', '1547612024534732900,1547612032566566962,1547612034214924358,1547612020679905431')).split(',').map(x => x.trim()).filter(Boolean);
+const ADD_ROLE = env('DISCORD_ADD_ROLE', '1553706826497785967');
+
+async function discordRoleCall(method, p) {
+  const r = await fetch(`https://discord.com/api/v10${p}`, {
+    method,
+    headers: { Authorization: `Bot ${C.discordToken}`, 'X-Audit-Log-Reason': encodeURIComponent('Activation site') },
+  });
+  if (!r.ok) { const e = new Error(`HTTP ${r.status}`); e.status = r.status; e.detail = `${method} ${p} -> ${(await r.text().catch(() => '')).slice(0, 200)}`; throw e; }
+}
+// يزيل الرتب القديمة (إن وُجدت) ويعطي رتبة التفعيل (إن لم تكن موجودة). لا يغيّر أي رتب أخرى.
+async function applyActivationRoles(discordId) {
+  if (!C.guildId) return { skipped: 'لم يتم ضبط DISCORD_GUILD_ID' };
+  if (!discordId) return { skipped: 'لا يوجد ID ديسكورد صالح' };
+  try {
+    let member;
+    try { member = await discordApi(`/guilds/${C.guildId}/members/${discordId}`); }
+    catch (e) { if (e.status === 404) return { skipped: 'الشخص ليس عضواً في السيرفر' }; throw e; }
+    const has = new Set(member.roles || []);
+    const removed = [], added = [];
+    for (const id of REMOVE_ROLES) {
+      if (has.has(id)) { await discordRoleCall('DELETE', `/guilds/${C.guildId}/members/${discordId}/roles/${id}`); removed.push(id); }
+    }
+    if (ADD_ROLE && !has.has(ADD_ROLE)) { await discordRoleCall('PUT', `/guilds/${C.guildId}/members/${discordId}/roles/${ADD_ROLE}`); added.push(ADD_ROLE); }
+    cache.delete('gm:' + discordId); // لتظهر الرتب الجديدة في البروفايل
+    return { ok: true, removed: removed.length, added: added.length, alreadyHad: !!ADD_ROLE && has.has(ADD_ROLE) };
+  } catch (e) {
+    console.error('activation roles', e.message, e.detail || '');
+    return { error: e.status === 403 ? 'البوت لا يستطيع تعديل الرتب: أعطه صلاحية Manage Roles وضع رتبته أعلى من هذه الرتب' : 'فشل تعديل الرتب (' + e.message + ')' };
+  }
+}
 // يحوّل اسم مستخدم ديسكورد إلى ID (يحتاج DISCORD_GUILD_ID وأن البوت داخل السيرفر)
 async function resolveDiscordName(name) {
   if (!C.guildId) return null;
@@ -233,7 +265,8 @@ const server = http.createServer(async (req, res) => {
         list.push({ userId: uid, username, discordInput: dis, discordId: discordId || null, addedAt: Date.now() });
         await dsSet(C.wlStore, C.wlKey, { users: list });
       });
-      return send(res, 200, { ok: true, discordResolved: !!discordId });
+      const roles = await applyActivationRoles(discordId);
+      return send(res, 200, { ok: true, discordResolved: !!discordId, roles });
     }
     let m;
     if ((m = p.match(/^\/api\/users\/(\d+)$/)) && req.method === 'DELETE') {
