@@ -68,6 +68,10 @@ button:disabled{opacity:.5;cursor:not-allowed}
 #login .box h1{margin-bottom:18px}
 #login .box button{width:100%;margin-top:12px;padding:13px}
 .muted{color:var(--mute);font-size:13px}
+.roles{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;justify-content:center}
+.role{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;border:1px solid var(--line);background:var(--card2)}
+.role i{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--mute)}
+.sec{font-size:13px;color:var(--mute);margin-top:18px}
 </style>
 </head>
 <body>
@@ -231,6 +235,14 @@ function ago(ms) {
   if (s < 86400) return `قبل ${Math.floor(s / 3600)} ساعة`;
   return `قبل ${Math.floor(s / 86400)} يوم`;
 }
+function rolesHtml(g) {
+  if (!g) return '<div class="sec">الرتب غير مفعلة (أضف DISCORD_GUILD_ID)</div>';
+  if (g.error) return `<div class="sec" style="color:var(--bad)">${esc(g.error)}</div>`;
+  if (!g.inGuild) return '<div class="sec">هذا الشخص ليس عضواً في السيرفر</div>';
+  if (!g.roles.length) return '<div class="sec">لا توجد رتب</div>';
+  return `<div class="sec">الرتب (${g.roles.length})</div><div class="roles">` + g.roles.map(r =>
+    `<span class="role"><i style="${r.color ? 'background:' + esc(r.color) : ''}"></i>${esc(r.name)}</span>`).join('') + '</div>';
+}
 async function showTab(t) {
   tab = t; $('tabR').classList.toggle('on', t === 'r'); $('tabD').classList.toggle('on', t === 'd');
   const body = $('pBody'); body.innerHTML = '<div class="muted">جاري التحميل…</div>';
@@ -270,7 +282,10 @@ async function showTab(t) {
             <div><span>الايدي</span><span>${d.id}</span></div>
             <div><span>تاريخ إنشاء الحساب</span><span>${fmtDate(d.created)}</span></div>
             <div><span>عمر الحساب</span><span>${ageOf(d.created)}</span></div>
+            ${d.guild && d.guild.inGuild && d.guild.nick ? `<div><span>الاسم في السيرفر</span><span>${esc(d.guild.nick)}</span></div>` : ''}
+            ${d.guild && d.guild.inGuild && d.guild.joinedAt ? `<div><span>انضم للسيرفر</span><span>${fmtDate(d.guild.joinedAt)}</span></div>` : ''}
           </div>
+          ${rolesHtml(d.guild)}
         </div>`;
     }
     if (t === 'r') body.style.padding = '';
