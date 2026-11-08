@@ -194,7 +194,11 @@ async function finish() {
   $('aDone').disabled = true;
   try {
     const r = await api('/api/activate', { method: 'POST', body: JSON.stringify({ userId: selected.id, username: selected.name, discord }) });
-    toast(r.discordResolved ? 'تم التفعيل ✅' : 'تم التفعيل ✅ (لم يتم التعرف على حساب ديسكورد — استخدم الـ ID لعرض البروفايل)', 'good');
+    let msg = 'تم التفعيل ✅';
+    if (!r.discordResolved) msg += ' (لم يتم التعرف على حساب ديسكورد — استخدم الـ ID لعرض البروفايل)';
+    else if (r.roles && r.roles.ok) msg += r.roles.alreadyHad ? ' — الرتبة موجودة مسبقاً' : ' — تم تعديل رتب ديسكورد';
+    else if (r.roles && (r.roles.error || r.roles.skipped)) msg += ' ⚠️ الرتب: ' + (r.roles.error || r.roles.skipped);
+    toast(msg, r.roles && r.roles.error ? 'err' : 'good');
     closeAll(); $('q').value = ''; $('results').innerHTML = ''; loadActive();
   } catch (e) { toast(e.message, 'err'); }
   $('aDone').disabled = false;
