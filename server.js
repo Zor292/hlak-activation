@@ -154,6 +154,26 @@ async function discordProfile(id) {
     };
   });
 }
+// رتب العضو داخل السيرفر المحدد في DISCORD_GUILD_ID
+async function discordGuildInfo(userId) {
+  if (!C.guildId) return null;
+  try {
+    const roles = await cached('gr:' + C.guildId, 5 * 60e3, () => discordApi(`/guilds/${C.guildId}/roles`));
+    const member = await cached('gm:' + userId, 60e3, async () => {
+      try { return await discordApi(`/guilds/${C.guildId}/members/${userId}`); }
+      catch (e) { if (e.status === 404) return null; throw e; }
+    });
+    if (!member) return { inGuild: false };
+    const byId = new Map(roles.map(r => [r.id, r]));
+    const list = (member.roles || []).map(id => byId.get(id)).filter(Boolean)
+      .sort((a, b) => b.position - a.position)
+      .map(r => ({ id: r.id, name: r.name, color: r.color ? '#' + r.color.toString(16).padStart(6, '0') : null }));
+    return { inGuild: true, nick: member.nick || null, joinedAt: member.joined_at || null, roles: list };
+  } catch (e) {
+    console.error('guild roles', e.message, e.detail || '');
+    return { error: e.status === 403 ? 'البوت لا يملك صلاحية رؤية الأعضاء (فعّل Server Members Intent)' : e.status === 401 ? 'توكن البوت غير صالح' : 'تعذر جلب الرتب' };
+  }
+}
 // يحوّل اسم مستخدم ديسكورد إلى ID (يحتاج DISCORD_GUILD_ID وأن البوت داخل السيرفر)
 async function resolveDiscordName(name) {
   if (!C.guildId) return null;
@@ -224,7 +244,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
     if ((m = p.match(/^\/api\/roblox\/(\d+)$/))) return send(res, 200, await robloxProfile(m[1]));
-    if ((m = p.match(/^\/api\/discord\/(\d{17,20})$/))) return send(res, 200, await discordProfile(m[1]));
+    if ((m = p.match(/^\/api\/discord\/(\d{17,20})$/))) return send(res, 200, { ...(await discordProfile(m[1])), guild: await discordGuildInfo(m[1]) });
     send(res, 404, { error: 'غير موجود' });
   } catch (e) {
     if (e.code === 409) return send(res, 409, { error: 'هذا اللاعب مفعّل مسبقاً' });
