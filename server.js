@@ -94,8 +94,25 @@ async function robloxThumbs(ids, size = '150x150') {
   const out = {}; for (const d of j.data || []) out[d.targetId] = d.imageUrl; return out;
 }
 async function robloxSearch(q) {
-  const j = await cached('rs:' + q.toLowerCase(), 30e3, () => getJson(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(q)}&limit=12`));
-  const users = j.data || [];
+  const key = 'rs:' + q.toLowerCase();
+  const found = await cached(key, 30e3, async () => {
+    let list = [];
+    // البحث العام: Roblox يقبل limit = 10 / 25 / 50 / 100 فقط، ويرفض الكلمات القصيرة جداً
+    try {
+      const j = await getJson(`https://users.roblox.com/v1/users/search?keyword=${encodeURIComponent(q)}&limit=25`);
+      list = j.data || [];
+    } catch (e) { if (e.status !== 400) throw e; }
+    // تطابق تام مع الاسم (يفيد للأسماء القصيرة)
+    try {
+      const j = await getJson('https://users.roblox.com/v1/usernames/users', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ usernames: [q], excludeBannedUsers: false }),
+      });
+      for (const u of j.data || []) if (!list.some(x => x.id === u.id)) list.unshift(u);
+    } catch {}
+    return list;
+  });
+  const users = found.slice(0, 24);
   const thumbs = await robloxThumbs(users.map(u => u.id));
   return users.map(u => ({ id: u.id, name: u.name, displayName: u.displayName, avatar: thumbs[u.id] || null }));
 }
